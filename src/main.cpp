@@ -60,96 +60,6 @@ void reconnect_mqtt() {
 }
 
 
-void callback(char* topic, byte* payload, unsigned int length) {
-  Serial.print("Message arrived [");
-  Serial.print(topic);
-  Serial.print("] ");
-  Serial.println();
-  for (int i = 0; i < length; i++) {
-    Serial.print((char)payload[i]);
-  }
-  Serial.println();
-
-  // String message;
-  // for (int i = 0; i < length; i++) {
-  //   message = message + (char) payload[i];  // convert *byte to string
-  // }
-  // Serial.print(message);
-
-  //// Switch on the LED if an 1 was received as first character
-  // if ((char)payload[0] == '1') {
-  //   digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
-  //   // but actually the LED is on; this is because
-  //   // it is active low on the ESP-01)
-  // } else {
-  //   digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
-  // }
-
-////////////////
-
-    Serial.println("$Received message:");
-
-    String sTopic = topic; //将topic转换为String 可以加以处理
-
-    String sMessage = (char *)payload;        //将消息转换为String
-    sMessage = sMessage.substring(0, length); //取合法长度 避免提取到旧消息
-    Serial.println(sMessage); //输出消息 用于调试 可以注释掉
-
-    //解析json
-    DynamicJsonDocument jsonBuffer(512); //创建一个DynamicJsonDocument类型的doc对象,大小2048byte
-    //DynamicJsonBuffer jsonBuffer;
-    //JsonObject& root = jsonBuffer.JsonObject(sMessage);
-    Serial.println("从sMessage解码成的DynamicJsonDocument对象doc:");
-    deserializeJson(jsonBuffer, sMessage);
-    for (int i = 0; i < length; i++) {
-      payload[i] = NULL;
-    }
-    sMessage = "";
-    // serializeJson(jsonBuffer, Serial);
-    Serial.println("从jsonBuffer对象转换成的JsonObject类型对象root:");
-    JsonObject root = jsonBuffer.as<JsonObject>();
-    // serializeJson(root, Serial);
-    Serial.println();
-    Serial.println(jsonBuffer.memoryUsage());
-    Serial.println(measureJson(jsonBuffer));
-    Serial.println(measureJsonPretty(jsonBuffer));
-
-    String LED1State = jsonBuffer["LED1"];
-    String LED2State = jsonBuffer["LED2"];
-    String LED3State = jsonBuffer["LED3"];
-
-    Serial.println(LED1State);
-    Serial.println(LED2State);
-    Serial.println(LED3State);
-
-    //按字符判断mqtt消息中命令的作用 可以自行定义
-    if (sMessage.charAt(0) == '#')
-    {         //第一位#
-        if (sMessage.charAt(1) == 'D') 
-        {     //第一位l
-            if (sMessage.charAt(2) == '1') 
-            { //第一位1
-                //处理#D1
-                //digitalWrite(LED, 0);  //输出低电平
-                digitalWrite(LED_BUILTIN, LOW);  
-            } 
-            else if (sMessage.charAt(2) == '0') 
-            {
-                //处理#D0
-                //igitalWrite(LED, 1); //初始化输出高电平
-                digitalWrite(LED_BUILTIN, HIGH);  
-            }
-        }
-        if (sMessage.charAt(1) == 'd') 
-        {
-            //处理#d...
-        }
-    }
-
-
-}
-
-
 /*----------------------------------------------定义任务------------------------------------------------*/
 
 
@@ -295,7 +205,7 @@ void thread_auto_reconnect() {
 
   if(WiFi.status() == WL_CONNECTED){
     Serial.println("");
-    Serial.println("WiFi connecteddddddddddddddddd");
+    Serial.println("WiFi connected");
     Serial.println("IP address: ");
     Serial.println(WiFi.localIP());
     
@@ -324,9 +234,10 @@ void thread_auto_reconnect() {
 
 }
 
+volatile int servo_pos[NUM_SERVOS];
 
 Ritos tarefa_servo; // Thread Task Two / 綫程任務5
-volatile int ms_5 = 1500;
+volatile int ms_5 = 500;
 void thread_servo() {
 
   ms_5--;
@@ -336,11 +247,122 @@ void thread_servo() {
     // snprintf (msg, MSG_BUFFER_SIZE, "h: %f", dht.getHumidity());
     // client.publish("outTopic", msg);
     // lastMsg = millis();
+    for (int index = 0; index < NUM_SERVOS; index++) {
+      ISR_Servo.setPosition(ISR_servo[index].servoIndex, servo_pos[index] );
+    }
 
-    ms_5 = 1500;
+    ms_5 = 500;
   }
 
 }
+
+
+/*---------------------------------------------回调函数-------------------------------------------------*/
+
+
+void callback(char* topic, byte* payload, unsigned int length) {
+  Serial.print("Message arrived [");
+  Serial.print(topic);
+  Serial.print("] ");
+  Serial.println();
+  for (int i = 0; i < length; i++) {
+    Serial.print((char)payload[i]);
+  }
+  Serial.println();
+
+  // String message;
+  // for (int i = 0; i < length; i++) {
+  //   message = message + (char) payload[i];  // convert *byte to string
+  // }
+  // Serial.print(message);
+
+  //// Switch on the LED if an 1 was received as first character
+  // if ((char)payload[0] == '1') {
+  //   digitalWrite(BUILTIN_LED, LOW);   // Turn the LED on (Note that LOW is the voltage level
+  //   // but actually the LED is on; this is because
+  //   // it is active low on the ESP-01)
+  // } else {
+  //   digitalWrite(BUILTIN_LED, HIGH);  // Turn the LED off by making the voltage HIGH
+  // }
+
+////////////////
+
+    Serial.println("$Received message:");
+
+    String sTopic = topic; //将topic转换为String 可以加以处理
+
+    String sMessage = (char *)payload;        //将消息转换为String
+    sMessage = sMessage.substring(0, length); //取合法长度 避免提取到旧消息
+    Serial.println(sMessage); //输出消息 用于调试 可以注释掉
+
+    //解析json//
+    DynamicJsonDocument jsonBuffer(512); //创建一个DynamicJsonDocument类型的doc对象,大小2048byte
+    //DynamicJsonBuffer jsonBuffer;
+    //JsonObject& root = jsonBuffer.JsonObject(sMessage);
+    Serial.println("从sMessage解码成的DynamicJsonDocument对象doc:");
+    deserializeJson(jsonBuffer, sMessage);
+    for (int i = 0; i < length; i++) {
+      payload[i] = NULL;
+    }
+    sMessage = "";
+    // serializeJson(jsonBuffer, Serial);
+    Serial.println("从jsonBuffer对象转换成的JsonObject类型对象root:");
+    JsonObject root = jsonBuffer.as<JsonObject>();
+    // serializeJson(root, Serial);
+    Serial.println();
+    Serial.println(jsonBuffer.memoryUsage());
+    Serial.println(measureJson(jsonBuffer));
+    Serial.println(measureJsonPretty(jsonBuffer));
+
+//-----------------------------------------------判断&赋值-----------------------------------------------//
+
+    String Tx_Node = jsonBuffer["tx_node"];
+    String Rx_Node = jsonBuffer["rx_node"];
+    String Status_Code = jsonBuffer["status_code"];
+
+    if(Rx_Node == "esp8266_servo2switch"){
+
+      for (int index = 0; index < NUM_SERVOS; index++) {
+        servo_pos[index] = jsonBuffer["servo_position"][index];
+        Serial.println(servo_pos[index]);
+      }
+
+    }
+
+    Serial.println(Tx_Node);
+    Serial.println(Rx_Node);
+    Serial.println(Status_Code);
+
+
+
+
+    // //按字符判断mqtt消息中命令的作用 可以自行定义
+    // if (sMessage.charAt(0) == '#')
+    // {         //第一位#
+    //     if (sMessage.charAt(1) == 'D') 
+    //     {     //第一位l
+    //         if (sMessage.charAt(2) == '1') 
+    //         { //第一位1
+    //             //处理#D1
+    //             //digitalWrite(LED, 0);  //输出低电平
+    //             digitalWrite(LED_BUILTIN, LOW);  
+    //         } 
+    //         else if (sMessage.charAt(2) == '0') 
+    //         {
+    //             //处理#D0
+    //             //igitalWrite(LED, 1); //初始化输出高电平
+    //             digitalWrite(LED_BUILTIN, HIGH);  
+    //         }
+    //     }
+    //     if (sMessage.charAt(1) == 'd') 
+    //     {
+    //         //处理#d...
+    //     }
+    // }
+
+
+}
+
 
 /*---------------------------------------------Arduino主函数-------------------------------------------------*/
 
@@ -360,7 +382,22 @@ void setup() {
     reconnect_mqtt();
   }
 
-  // Create threads task / 創建线程任務
+  for (int index = 0; index < NUM_SERVOS; index++)
+  {
+    servo_pos[index] = 90;
+    ISR_servo[index].servoIndex = ISR_Servo.setupServo(ISR_servo[index].servoPin, MIN_MICROS, MAX_MICROS);
+
+    if (ISR_servo[index].servoIndex != -1)
+    {
+      Serial.print(F("Setup OK Servo index = ")); Serial.println(ISR_servo[index].servoIndex);
+    }
+    else
+    {
+      Serial.print(F("Setup Failed Servo index = ")); Serial.println(ISR_servo[index].servoIndex);
+    }
+  }
+
+  // Create threads task / 創建线程任務 //
 
   tarefa_mqtt_loop.task(thread_mqtt_loop);
   tarefa_mqtt_publish.task(thread_mqtt_publish);

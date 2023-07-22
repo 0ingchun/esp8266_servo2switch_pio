@@ -36,3 +36,30 @@ int value = 0;
 String clientId = "ESP8266Client-lcdStation" + String(random(0xffff), HEX), clientUser = "user8266", clientPasswd = "88888888";
 
 #define LED_PIN 2
+
+#ifndef ESP8266
+  #error This code is designed to run on ESP8266 platform! Please check your Tools->Board setting.
+#endif
+
+#define TIMER_INTERRUPT_DEBUG       1
+#define ISR_SERVO_DEBUG             1
+
+// To be included only in main(), .ino with setup() to avoid `Multiple Definitions` Linker Error
+#include "ESP8266_ISR_Servo.h"
+
+// Published values for SG90 servos; adjust if needed
+#define MIN_MICROS      800  //544
+#define MAX_MICROS      2450
+
+#define NUM_SERVOS    3
+
+typedef struct
+{
+  int     servoIndex;
+  uint8_t servoPin;
+} ISR_servo_t;
+
+ISR_servo_t ISR_servo[NUM_SERVOS] =
+{
+  { -1, 14 }, { -1, 12 }, { -1, 13 }
+};
