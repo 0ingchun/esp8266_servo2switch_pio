@@ -1,43 +1,7 @@
-#include <Arduino.h>
-#include <ESP8266WiFi.h>
-
-
-#include<cstring>
-#include<string>
-
-//#include "HTTPClient.h"
-
 #include "main.hpp"
-#include "ritos.h"
-
-#include "ESP8266WebServer.h"
-#include "Servo.h"
-#include "PubSubClient.h"
-#include "ArduinoJson.h"
-#include "LiquidCrystal_I2C.h"
-#include "DHTesp.h"
 
 
-
-#define I2C_SDA D2
-#define I2C_SCL D1
-#define DHTPIN D0
-#define DHTTYPE DHT11
-
-LiquidCrystal_I2C lcd(0x27, 20, 4);
-
-DHTesp dht;
-
-const char* ssid = "White-House";
-const char* password = "qazwsxedcrfv123!";
-const char* mqtt_server = "192.168.2.200";
-
-WiFiClient espClient;
-PubSubClient client(espClient);
-unsigned long lastMsg = 0;
-#define MSG_BUFFER_SIZE	(500) //50
-char msg[MSG_BUFFER_SIZE];
-int value = 0;
+/*----------------------------------------------用户函数------------------------------------------------*/
 
 void setup_wifi() {
 
@@ -65,6 +29,36 @@ void setup_wifi() {
   WiFi.setAutoReconnect(true); //设置当断开连接的时候自动重连
   //WiFi.persistent(true); //该方法设置将WiFi参数保存于Flash
 }
+
+
+void reconnect_mqtt() {
+  // Loop until we're reconnected
+  while (!client.connected()) {
+    Serial.print("Attempting MQTT connection...");
+    // Create a random client ID
+    // String clientId = "ESP8266Client-lcdStation", clientUser = "user8266", clientPasswd = "88888888";
+    // String(random(0xffff), HEX)
+
+    // Attempt to connect
+    if (client.connect(clientId.c_str(), clientUser.c_str(), clientPasswd.c_str())) {
+
+        ESP.wdtFeed();
+
+      Serial.println("connected");
+      // Once connected, publish an announcement...
+      client.publish("outTopic", "hello world");
+      // ... and resubscribe
+      client.subscribe("inTopic");
+    } else {
+      Serial.print("failed, rc=");
+      Serial.print(client.state());
+      Serial.println(" try again in 5 seconds");
+      // Wait 5 seconds before retrying
+      delay(100);
+    }
+  }
+}
+
 
 void callback(char* topic, byte* payload, unsigned int length) {
   Serial.print("Message arrived [");
@@ -156,268 +150,22 @@ void callback(char* topic, byte* payload, unsigned int length) {
 }
 
 
-String clientId = "ESP8266Client-lcdStation" + String(random(0xffff), HEX), clientUser = "user8266", clientPasswd = "88888888";
-
-void reconnect() {
-  // Loop until we're reconnected
-  while (!client.connected()) {
-    Serial.print("Attempting MQTT connection...");
-    // Create a random client ID
-    //String clientId = "ESP8266Client-lcdStation", clientUser = "user8266", clientPasswd = "88888888";
-    //String(random(0xffff), HEX)
-
-    // Attempt to connect
-    if (client.connect(clientId.c_str(), clientUser.c_str(), clientPasswd.c_str())) {
-
-        ESP.wdtFeed();
-
-      Serial.println("connected");
-      // Once connected, publish an announcement...
-      client.publish("outTopic", "hello world");
-      // ... and resubscribe
-      client.subscribe("inTopic");
-    } else {
-      Serial.print("failed, rc=");
-      Serial.print(client.state());
-      Serial.println(" try again in 5 seconds");
-      // Wait 5 seconds before retrying
-      delay(100);
-    }
-  }
-}
+/*----------------------------------------------定义任务------------------------------------------------*/
 
 
+Ritos tarefa_mqtt_loop; // Thread Task Two / 綫程任務3
 
-volatile int a = 1000, b = 1000;
-int statemachine = 0;
-
-Ritos tarefa1; // Thread Task One / 綫程任務1
-void thread1() {
-  a--;
-  
-  if ( a <= 0 && statemachine==0) {
-    Serial.println("Interrupt thread 1!");
-    lcd.backlight();
-      lcd.setCursor(0,0);
-  lcd.print(b);
-    // Attention! Delay() cannot be used within the thread / 注意！綫程内不允許使用Delay()
-    a = 1500; // 1500ms. You can be used in this way instead of Delay(1500); 您可以通過此方法延時，代替Delay(1500);
-    statemachine=1;
-  }
-
-    if ( a <= 0 && statemachine==1) {   
-    Serial.println("thread 1 again!");
-    lcd.backlight();
-      lcd.setCursor(0,0);
-  lcd.print(b);
-    a = 2000; // 2000ms
-    statemachine=2;
-  }
-
-    if ( a <= 0 && statemachine==2) {   
-    Serial.println("thread 1 again again!");
-    lcd.backlight();
-      lcd.setCursor(0,0);
-  lcd.print(b);
-    a = 1700; // 1700ms
-    statemachine=0;
-  }
-
-}
-
-
-Ritos tarefa3; // Thread Task Two / 綫程任務3
-
-void thread3() {
+void thread_mqtt_loop() {
 
   //client.subscribe("inTopic");
   client.loop();
 
 }
 
-Ritos tarefa4; // Thread Task Two / 綫程任務4
-void thread4() {
 
-  //unsigned long now4 = millis();
-  if (millis() - lastMsg > 500) { // >2000 => 2000ms
-    
-    //++value;
-    
-    String dht_msg;
-    dht_msg = String("*") 
-    + String(dht.getHumidity()) 
-    + String("#") 
-    + String(dht.getTemperature()) 
-    + String("#") 
-    + String(dht.getStatusString()) 
-    + String("*")
-    + String("hello world #%ld")
-    + String("*");
-
-    //String pp = "dagah";
-
-    char dht_p[sizeof(dht_msg)];
-    int i;
-    for( i=0;i<dht_msg.length();i++)
-      dht_p[i] = dht_msg[i];
-    dht_p[i] = '\0';
-    //printf("%s\n",p);
-
-    //const char cnm[sizeof(dht_msg)] = {dht_msg};
-
-    snprintf (msg, MSG_BUFFER_SIZE, dht_p);
-
-    // float dht_h = dht.getHumidity();
-    // snprintf (msg, MSG_BUFFER_SIZE, "h: %f", dht.getHumidity());
-
-    //snprintf (msg, MSG_BUFFER_SIZE, "hello world #%ld", value);
-    // Serial.print("Publish message: ");
-    // Serial.println(msg);
-    client.publish("outTopic", msg);
-
-    lastMsg = millis();
-  }
-  
-}
-
-Ritos tarefa5; // Thread Task Two / 綫程任務5
-volatile int ms_5 = 1500;
-void thread5() {
-
-  ms_5--;
-
-  if ( ms_5 <= 0 ) {
-
-    snprintf (msg, MSG_BUFFER_SIZE, "h: %f", dht.getHumidity());
-    client.publish("outTopic", msg);
-    lastMsg = millis();
-
-    ms_5 = 1500;
-  }
-
-}
-
-Ritos tarefa6; // Thread Task Two / 綫程任務6
-volatile int ms_6 = 3000;
-void thread6() {
-
-  ms_6--;
-
-  if ( ms_6 <= 0 ) {
-
-    //ets_delay_us(10000);
-
-    snprintf (msg, MSG_BUFFER_SIZE, "ttttttttttttttt: %f", dht.getTemperature());
-    client.publish("outTopic", msg);
-    lastMsg = millis();
-
-    ms_6 = 3000;
-  }
-
-}
-
-
-Ritos tarefa8; // Thread Task Two / 綫程任務8
-volatile int ms_8 = 10000;
-unsigned long previousMillis = 0;
-unsigned long interval = 30000;
-void thread8() {
-  ms_8--;
-
-//client.loop();
-
-  if ( ms_8 <= 0 ) {
-
-      
-  //定时重连
-  if(WiFi.status()!= WL_CONNECTED){
-    Serial.println("Failed to connect WiFi...");
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-
-  if(!client.connected()){
-    Serial.print("Failed to connect mqtt Server... ");
-    Serial.println(client.state());
-    digitalWrite(LED_BUILTIN, HIGH);
-  }
-
-  //ESP.wdtFeed();
-
-  unsigned long currentMillis = millis();
-  if (!client.connected() && (currentMillis - previousMillis >=interval) && WiFi.status()== WL_CONNECTED) {
-    Serial.print(millis());
-    Serial.println("Reconnecting to mqtt Server...");
-
-    // while (WiFi.status() != WL_CONNECTED) {
-    //   delay(500);
-    //   Serial.print(".");
-    // }
-
-    // randomSeed(micros());
-    // if (!client.connected()) {
-    //   reconnect();
-    // }
-
-    // String clientId = "ESP8266Client-lcdStation", clientUser = "user8266", clientPasswd = "88888888";
-    // clientId += String(random(0xffff), HEX);
-
-      //ESP.wdtFeed();
-      ESP.wdtDisable();
-
-      client.disconnect();
-    Serial.println(client.state());
-
-    //client.connected();
-    while(!client.connected()){
-      ESP.wdtFeed();
-      client.connect("ClientID2", "2user8266", "22222222");
-      ESP.wdtFeed();
-      Serial.println(client.state());
-    }
-    //reconnect();
-    
-      //ESP.wdtEnable(3000);
-      system_soft_wdt_restart();
-      ESP.wdtEnable((uint32_t) 300);
-      //NOP;
-      ESP.wdtFeed();
-
-  }
-
-  if(WiFi.status() == WL_CONNECTED){
-    Serial.println("");
-    Serial.println("WiFi connecteddddddddddddddddd");
-    Serial.println("IP address: ");
-    Serial.println(WiFi.localIP());
-    
-    digitalWrite(LED_BUILTIN, LOW);
-
-    if(client.connected()){
-      Serial.println("Attempting MQTT connection...");
-      // Once connected, publish an announcement...
-      client.publish("outTopic", "hello world");
-      // ... and resubscribe
-      client.subscribe("inTopic");
-      digitalWrite(LED_BUILTIN, LOW);
-
-      previousMillis = currentMillis;
-    } 
-    
-    else {
-      Serial.print("Failed to connect mqtt Server...  ");
-      Serial.println(client.state());
-    }
-
-  } 
-
-    ms_8 = 10000;
-  }
-
-}
-
-Ritos tarefa9; // Thread Task Two / 綫程任務9
+Ritos tarefa_mqtt_publish; // Thread Task Two / 綫程任務9
 volatile int ms_9 = 3000;
-void thread9() {
+void thread_mqtt_publish() {
 
   ms_9--;
 
@@ -477,6 +225,125 @@ void thread9() {
   
 }
 
+
+Ritos tarefa_auto_reconnect; // Thread Task Two / 綫程任務8
+volatile int ms_8 = 10000;
+unsigned long previousMillis = 0;
+unsigned long interval = 30000;
+void thread_auto_reconnect() {
+  ms_8--;
+
+//client.loop();
+
+  if ( ms_8 <= 0 ) {
+
+      
+  //定时重连
+  if(WiFi.status()!= WL_CONNECTED){
+    Serial.println("Failed to connect WiFi...");
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  if(!client.connected()){
+    Serial.print("Failed to connect mqtt Server... ");
+    Serial.println(client.state());
+    digitalWrite(LED_BUILTIN, HIGH);
+  }
+
+  //ESP.wdtFeed();
+
+  unsigned long currentMillis = millis();
+  if (!client.connected() && (currentMillis - previousMillis >=interval) && WiFi.status()== WL_CONNECTED) {
+    Serial.print(millis());
+    Serial.println("Reconnecting to mqtt Server...");
+
+    // while (WiFi.status() != WL_CONNECTED) {
+    //   delay(500);
+    //   Serial.print(".");
+    // }
+
+    // randomSeed(micros());
+    // if (!client.connected()) {
+    //   reconnect_mqtt();
+    // }
+
+    // String clientId = "ESP8266Client-lcdStation", clientUser = "user8266", clientPasswd = "88888888";
+    // clientId += String(random(0xffff), HEX);
+
+      //ESP.wdtFeed();
+      ESP.wdtDisable();
+
+      client.disconnect();
+    Serial.println(client.state());
+
+    //client.connected();
+    while(!client.connected()){
+      ESP.wdtFeed();
+      client.connect("ClientID2", "2user8266", "22222222");
+      ESP.wdtFeed();
+      Serial.println(client.state());
+    }
+    //reconnect_mqtt();
+    
+      //ESP.wdtEnable(3000);
+      system_soft_wdt_restart();
+      ESP.wdtEnable((uint32_t) 300);
+      //NOP;
+      ESP.wdtFeed();
+
+  }
+
+  if(WiFi.status() == WL_CONNECTED){
+    Serial.println("");
+    Serial.println("WiFi connecteddddddddddddddddd");
+    Serial.println("IP address: ");
+    Serial.println(WiFi.localIP());
+    
+    digitalWrite(LED_BUILTIN, LOW);
+
+    if(client.connected()){
+      Serial.println("Attempting MQTT connection...");
+      // Once connected, publish an announcement...
+      client.publish("outTopic", "hello world");
+      // ... and resubscribe
+      client.subscribe("inTopic");
+      digitalWrite(LED_BUILTIN, LOW);
+
+      previousMillis = currentMillis;
+    } 
+    
+    else {
+      Serial.print("Failed to connect mqtt Server...  ");
+      Serial.println(client.state());
+    }
+
+  } 
+
+    ms_8 = 10000;
+  }
+
+}
+
+
+Ritos tarefa_servo; // Thread Task Two / 綫程任務5
+volatile int ms_5 = 1500;
+void thread_servo() {
+
+  ms_5--;
+
+  if ( ms_5 <= 0 ) {
+
+    // snprintf (msg, MSG_BUFFER_SIZE, "h: %f", dht.getHumidity());
+    // client.publish("outTopic", msg);
+    // lastMsg = millis();
+
+    ms_5 = 1500;
+  }
+
+}
+
+/*---------------------------------------------Arduino主函数-------------------------------------------------*/
+
 void setup() {
   Serial.begin(115200);
 
@@ -488,40 +355,18 @@ void setup() {
   client.setServer(mqtt_server, 1883);
   client.setKeepAlive(65535); //不知道啥东西，保活时间？
   client.setCallback(callback);
-  //client.setStream(sram);
-
-  lcd.init(); //LCD init
-
-  lcd.backlight();
-  lcd.setCursor(3,0);
-  lcd.print("Hello, world!");
-  lcd.setCursor(2,1);
-  lcd.print("Ywrobot Arduino!");
-  lcd.setCursor(0,2);
-  lcd.print("Arduino LCM IIC 2004");
-  lcd.setCursor(2,3);
-  lcd.print("Power By Ec-yuan!");
-
-  dht.setup(DHTPIN, DHTesp::DHTTYPE);
-  delay(dht.getMinimumSamplingPeriod());
 
   if (!client.connected()) {
-    reconnect();
+    reconnect_mqtt();
   }
 
-  lcd.noBacklight();
-  lcd.clear();
-
   // Create threads task / 創建线程任務
-  tarefa1.task(thread1);  
-  //tarefa2.task(thread2);
-  tarefa3.task(thread3);
-  tarefa4.task(thread4);
-  tarefa5.task(thread5);
-  tarefa6.task(thread6);
-  //tarefa7.task(thread7);
-  tarefa8.task(thread8);
-  tarefa9.task(thread9);
+
+  tarefa_mqtt_loop.task(thread_mqtt_loop);
+  tarefa_mqtt_publish.task(thread_mqtt_publish);
+  tarefa_auto_reconnect.task(thread_auto_reconnect);
+
+  tarefa_servo.task(thread_servo);
 
 }
 
