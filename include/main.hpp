@@ -33,7 +33,7 @@ unsigned long lastMsg = 0;
 char msg[MSG_BUFFER_SIZE];
 int value = 0;
 
-String clientId = "ESP8266Client-lcdStation" + String(random(0xffff), HEX), clientUser = "user8266", clientPasswd = "88888888";
+String clientId = "ESP8266Client-Servo2Switch" + String(random(0xffff), HEX), clientUser = "user8266", clientPasswd = "88888888";
 
 #define LED_PIN 2
 
